@@ -150,6 +150,7 @@ def redirect(code: str, request: Request, background: BackgroundTasks):
     # cache is store like id|url as a single string, here we are unpacking them into two sepeate entities
         link_id_str, long_url = cached.split("|", 1)
         link_id = int(link_id_str)
+        # cached the url and sent to redirect, but no stat recording on cache hit
     else:
         conn = get_conn()
         try:
@@ -169,10 +170,10 @@ def redirect(code: str, request: Request, background: BackgroundTasks):
         link_id, long_url = row
         redis_client.set(cache_key, f"{link_id}|{long_url}", ex=CACHE_TTL)
 
-        background.add_task(
-            record_click,
-            link_id,
-            request.headers.get("referer"),
-            request.headers.get("user-agent"),
-        )
+    background.add_task(
+        record_click,
+        link_id,
+        request.headers.get("referer"),
+        request.headers.get("user-agent"),
+    )
     return RedirectResponse(long_url, status_code=302)
