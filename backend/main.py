@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 import mysql.connector
+from mysql.connector import pooling
+import redis
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +20,17 @@ origins = [
     "https://bit-url-brown.vercel.app"
 ]
 
+db_pool = pooling.MySQLConnectionPool(
+    pool_name="url_pool",
+    pool_size=5,
+    host=os.environ["DB_HOST"],
+    port=int(os.environ["DB_PORT"]),
+    user=os.environ["DB_USER"],
+    password=os.environ["DB_PASSWORD"],
+    database=os.environ["DB_NAME"],
+    ssl_ca=os.environ["DB_SSL_CA"],
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -27,14 +40,19 @@ app.add_middleware(
 )
 
 def get_conn():
-    return mysql.connector.connect(
-        host=os.environ["DB_HOST"],
-        port=int(os.environ["DB_PORT"]),
-        user=os.environ["DB_USER"],
-        password=os.environ["DB_PASSWORD"],
-        database=os.environ["DB_NAME"],
-        ssl_ca=os.environ["DB_SSL_CA"]
-    )
+    # return mysql.connector.connect(
+    #     host=os.environ["DB_HOST"],
+    #     port=int(os.environ["DB_PORT"]),
+    #     user=os.environ["DB_USER"],
+    #     password=os.environ["DB_PASSWORD"],
+    #     database=os.environ["DB_NAME"],
+    #     ssl_ca=os.environ["DB_SSL_CA"]
+    # )
+    return db_pool.get_connection()
+
+redis_client = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+
+CACHE_TTL = 60 * 60 * 24
 
 def generate_short_code():
 
@@ -124,25 +142,37 @@ def status():
 
 @app.get("/{code}")
 def redirect(code: str, request: Request, background: BackgroundTasks):
-    conn = get_conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT id, long_url FROM links WHERE short_code = %s",
-            (code,),
+    
+    cache_key = f"link:{code}"
+    cached = redis_client.get(cache_key)
+
+    if cached is not None:
+    # cache is store like id|url as a single string, here we are unpacking them into two sepeate entities
+        link_id_str, long_url = cached.split("|", 1)
+        link_id = int(link_id_str)
+    else:
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, long_url FROM links WHERE short_code = %s",
+                (code,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+    
+        if row is None:
+            raise HTTPException(status_code=404, detail="short code not found")
+        
+        
+        link_id, long_url = row
+        redis_client.set(cache_key, f"{link_id}|{long_url}", ex=CACHE_TTL)
+
+        background.add_task(
+            record_click,
+            link_id,
+            request.headers.get("referer"),
+            request.headers.get("user-agent"),
         )
-        row = cur.fetchone()
-    finally:
-        conn.close()
- 
-    if row is None:
-        raise HTTPException(status_code=404, detail="short code not found")
- 
-    link_id, long_url = row
-    background.add_task(
-        record_click,
-        link_id,
-        request.headers.get("referer"),
-        request.headers.get("user-agent"),
-    )
     return RedirectResponse(long_url, status_code=302)
