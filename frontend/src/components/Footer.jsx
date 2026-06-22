@@ -17,7 +17,7 @@ export default function Footer() {
           </a>
           <a
             className="text-on-surface-variant hover:text-primary transition-colors font-body-sm text-body-sm"
-            href="#"
+            href="https://github.com/Dhairya1890/BitURL"
           >
             GitHub
           </a>
