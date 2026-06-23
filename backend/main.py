@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import string
 import secrets
+import json
 
 load_dotenv()
 
@@ -22,7 +23,7 @@ origins = [
 
 db_pool = pooling.MySQLConnectionPool(
     pool_name="url_pool",
-    pool_size=5,
+    pool_size=10,
     host=os.environ["DB_HOST"],
     port=int(os.environ["DB_PORT"]),
     user=os.environ["DB_USER"],
@@ -38,6 +39,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+CLICK_QUEUE = "clicks:queue"
 
 def get_conn():
     # return mysql.connector.connect(
@@ -96,18 +99,30 @@ def shorten(body : CreateLink):
     finally:
         conn.close()
 
+def enqueue_click(link_id, referrer, user_agent):
+    event = json.dumps({
+        "link_id" : link_id,
+        "referrer" : referrer,
+        "user_agent" : user_agent
+    })
+    redis_client.lpush(CLICK_QUEUE, event)
+
 def record_click(link_id: int, referrer: str | None, user_agent: str | None):
     """Runs in the background so it doesn't slow the redirect."""
-    conn = get_conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO clicks (link_id, referrer, user_agent) VALUES (%s, %s, %s)",
-            (link_id, referrer, user_agent),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+    '''Update : move it to redis and queue that adds stats preriodically'''
+    '''Implement Producer-consumer architecture'''
+    # conn = get_conn()
+    # try:
+    #     cur = conn.cursor()
+    #     cur.execute(
+    #         "INSERT INTO clicks (link_id, referrer, user_agent) VALUES (%s, %s, %s)",
+    #         (link_id, referrer, user_agent),
+    #     )
+    #     conn.commit()
+    # finally:
+    #     conn.close()
+
+    
   
 @app.get("/{code}/stats")
 def stats(code: str):
@@ -171,7 +186,7 @@ def redirect(code: str, request: Request, background: BackgroundTasks):
         redis_client.set(cache_key, f"{link_id}|{long_url}", ex=CACHE_TTL)
 
     background.add_task(
-        record_click,
+        enqueue_click,
         link_id,
         request.headers.get("referer"),
         request.headers.get("user-agent"),
