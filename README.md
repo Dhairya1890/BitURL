@@ -32,6 +32,6 @@ erDiagram
     LINKS ||--o{ CLICKS : "has many"
 ```
 ## Tech Stack
-- **Backend:** FastAPI (Python), MySQL (Aiven), raw SQL via mysql-connector
+- **Backend:** FastAPI (Python), MySQL (Aiven), SQL via mysql-connector, Redis via Upstash, Queue Worker Hosted on Azure VM.
 - **Frontend:** React (Vite), Tailwind CSS
 - **Deployment:** Render (backend), Vercel (frontend)
