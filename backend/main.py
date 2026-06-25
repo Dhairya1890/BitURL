@@ -23,7 +23,7 @@ origins = [
 
 db_pool = pooling.MySQLConnectionPool(
     pool_name="url_pool",
-    pool_size=12,
+    pool_size=10,
     host=os.environ["DB_HOST"],
     port=int(os.environ["DB_PORT"]),
     user=os.environ["DB_USER"],
