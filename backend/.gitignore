@@ -1,3 +1,4 @@
 .env
 venv
 ca.pem
+BitURL-worker_key.pem
