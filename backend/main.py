@@ -23,7 +23,7 @@ origins = [
 
 db_pool = pooling.MySQLConnectionPool(
     pool_name="url_pool",
-    pool_size=10,
+    pool_size=15,
     host=os.environ["DB_HOST"],
     port=int(os.environ["DB_PORT"]),
     user=os.environ["DB_USER"],
@@ -40,7 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CLICK_QUEUE = "clicks:queue"
+CLICK_QUEUE = "click:queue"
 
 def get_conn():
     # return mysql.connector.connect(
@@ -107,20 +107,20 @@ def enqueue_click(link_id, referrer, user_agent):
     })
     redis_client.lpush(CLICK_QUEUE, event)
 
-def record_click(link_id: int, referrer: str | None, user_agent: str | None):
-    """Runs in the background so it doesn't slow the redirect."""
-    '''Update : move it to redis and queue that adds stats preriodically'''
-    '''Implement Producer-consumer architecture'''
-    # conn = get_conn()
-    # try:
-    #     cur = conn.cursor()
-    #     cur.execute(
-    #         "INSERT INTO clicks (link_id, referrer, user_agent) VALUES (%s, %s, %s)",
-    #         (link_id, referrer, user_agent),
-    #     )
-    #     conn.commit()
-    # finally:
-    #     conn.close()
+# def record_click(link_id: int, referrer: str | None, user_agent: str | None):
+#     """Runs in the background so it doesn't slow the redirect."""
+#     '''Update : moved it to enqueue_clicks with redis queue'''
+#     '''Implement Producer-consumer architecture'''
+#     # conn = get_conn()
+#     # try:
+#     #     cur = conn.cursor()
+#     #     cur.execute(
+#     #         "INSERT INTO clicks (link_id, referrer, user_agent) VALUES (%s, %s, %s)",
+#     #         (link_id, referrer, user_agent),
+#     #     )
+#     #     conn.commit()
+#     # finally:
+#     #     conn.close()
 
     
   
