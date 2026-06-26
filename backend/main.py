@@ -57,6 +57,10 @@ redis_client = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
 
 CACHE_TTL = 60 * 60 * 24
 
+@app.head('/uptime')
+def uptime():
+    return {"status" : "healthy"}
+
 def generate_short_code():
 
     allowed_chars = string.ascii_letters + string.digits
